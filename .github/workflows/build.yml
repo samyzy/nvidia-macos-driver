@@ -1,0 +1,106 @@
+name: Build Driver
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      build_nvk:
+        description: 'Build Mesa NVK Vulkan driver (takes additional time)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Driver & Kexts (macOS 15)
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Select Xcode 16
+        run: |
+          DEVELOPER_DIR=$(find /Applications -maxdepth 1 -name "Xcode_16*.app" | sort -V | tail -n 1)
+          if [ -n "$DEVELOPER_DIR" ]; then
+            echo "Selecting Xcode from $DEVELOPER_DIR"
+            sudo xcode-select -s "$DEVELOPER_DIR/Contents/Developer"
+          fi
+          xcodebuild -version
+
+      - name: Setup Rust (stable & x86_64 target)
+        run: |
+          rustup default stable
+          rustup target add x86_64-apple-darwin
+          rustc --version
+          cargo --version
+
+      - name: Install build dependencies
+        run: |
+          brew install meson ninja mako pkg-config glslang || true
+
+      - name: Fetch Vulkan-Headers
+        run: |
+          git clone --depth 1 https://github.com/KhronosGroup/Vulkan-Headers.git "$HOME/Vulkan-Headers"
+
+      - name: Fetch NVIDIA open-gpu-kernel-modules (610.57.04)
+        run: |
+          git clone --depth 1 --branch 610.57.04 https://github.com/NVIDIA/open-gpu-kernel-modules.git "$HOME/ogkm610"
+
+      - name: Build Driver & Extensions
+        env:
+          OGKM: ${{ github.workspace }}/../ogkm610
+          VULKAN_HEADERS: ${{ github.workspace }}/../Vulkan-Headers
+          BUILD_NVK: ${{ github.event.inputs.build_nvk || '0' }}
+          RELEASE: '1'
+        run: |
+          export OGKM="$HOME/ogkm610"
+          export VULKAN_HEADERS="$HOME/Vulkan-Headers"
+          if [ "${{ github.event.inputs.build_nvk }}" = "true" ]; then
+            export BUILD_NVK=1
+          else
+            export BUILD_NVK=0
+          fi
+          ./build/build_all.sh
+
+      - name: Run verification tests
+        run: |
+          python3 tools/test_security_hardening.py
+          python3 tools/test_card_support.py
+          python3 tools/test_boot_raster_modes.py
+          python3 tools/test_boot_raster_pick.py
+          python3 tools/test_checksum_strict.py
+          python3 tools/test_copy_class_selection.py
+          python3 tools/test_fbclaim_match.py
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nullmoth-nvidia-driver-${{ github.sha }}
+          path: |
+            dist/nullmoth-nvidia-driver.tar.gz
+            dist/pkgroot/SHA256SUMS
+            build-out/
+
+      - name: Publish Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/nullmoth-nvidia-driver.tar.gz
+            dist/pkgroot/SHA256SUMS
+          draft: false
+          prerelease: false
+          generate_release_notes: true

@@ -154,6 +154,16 @@ sudo ./uninstall.sh && sudo shutdown -r now
 
 Requires Xcode 16, Rust (stable), Meson/Ninja, and NVIDIA's `open-gpu-kernel-modules` at tag `610.57.04`.
 
+An automated GitHub Actions workflow (`.github/workflows/build.yml`) builds and packages all driver components on every push and tag release.
+
+To build everything locally using the automated build script:
+
+```bash
+build/build_all.sh
+```
+
+Or build each component individually:
+
 ```bash
 build/build_xlate.sh
 RELEASE=1 build/build_plugin.sh

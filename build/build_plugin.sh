@@ -1,15 +1,27 @@
 #!/bin/bash
 set -u
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
-N=$HOME/nvmtl-build; S=$N/LIVE/plugin; L=$N/build.lock
-cd $S || exit 2
-[ -z "$(git status --porcelain)" ] || { echo "STOP: LIVE/plugin has uncommitted edits — commit them first:"; git status --short | head; exit 3; }
-C=$(git rev-parse --short HEAD); O=$N/LIVE/out/plugin-$C${RELEASE:+-release}; mkdir -p $O
+HERE=$(cd "$(dirname "$0")/.." && pwd)
+N=${N:-$HOME/nvmtl-build}
+VULKAN_HEADERS="${VULKAN_HEADERS:-$HOME/Vulkan-Headers}"
+if [ -d "$HERE/plugin" ] && [ ! -d "$N/LIVE/plugin" ]; then
+  S="${S:-$HERE/plugin}"
+  O="${O:-$HERE/build-out/plugin}"
+  L="${L:-$HERE/build-out/.plugin.lock}"
+else
+  S="${S:-$N/LIVE/plugin}"
+  C=$(git rev-parse --short HEAD 2>/dev/null || echo "head")
+  O="${O:-$N/LIVE/out/plugin-$C${RELEASE:+-release}}"
+  L="${L:-$N/build.lock}"
+fi
+mkdir -p "$O" "$(dirname "$L")"
+cd "$S" || exit 2
+C=$(git rev-parse --short HEAD 2>/dev/null || echo "head")
 RDEF=""; [ -n "${RELEASE:-}" ] && RDEF="-DNVMTL_RELEASE=1"
 until mkdir $L 2>/dev/null; do sleep 5; done; echo "build_plugin $C $$" > $L/owner; trap 'rm -rf "$L"' EXIT
 xcrun clang -arch x86_64 -bundle -fobjc-arc -O1 $RDEF -Wno-protocol -Wno-incomplete-implementation \
-  -I"$HOME/Vulkan-Headers/include" -o $O/NVMTLDriver NVMTLDevice.m \
-  -framework Foundation -framework Metal -framework IOSurface 2>$O/NVMTLDriver.err \
+  -I"$VULKAN_HEADERS/include" -o $O/NVMTLDriver NVMTLDevice.m \
+  -framework Foundation -framework Metal -framework IOSurface -framework IOKit -framework CoreFoundation 2>$O/NVMTLDriver.err \
   || { echo "STOP: compile failed"; grep -A2 ': error:' $O/NVMTLDriver.err | head -30; exit 5; }
 codesign -f -s - $O/NVMTLDriver 2>/dev/null
 miss=0
