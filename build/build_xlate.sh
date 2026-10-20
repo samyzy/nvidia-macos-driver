@@ -1,6 +1,6 @@
 #!/bin/bash
 set -u
-export PATH=$HOME/.cargo/bin:/usr/bin:/bin:/usr/sbin:/sbin
+export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:$PATH"
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 N=${N:-$HOME/nvmtl-build}
 if [ -d "$HERE/translator" ] && [ ! -d "$N/bindless" ]; then
@@ -24,7 +24,10 @@ if [ "$(uname -m)" != "x86_64" ]; then
   TARGET_FLAG="--target x86_64-apple-darwin"
   TARGET_DYLIB="target/x86_64-apple-darwin/release/libnvmtl_translate.dylib"
 fi
-cargo build --release $TARGET_FLAG --manifest-path wrapper/Cargo.toml --target-dir target > "$O/cargo.log" 2>&1; rc=$?
+cargo build --release $TARGET_FLAG --ignore-rust-version --manifest-path wrapper/Cargo.toml --target-dir target > "$O/cargo.log" 2>&1; rc=$?
+if [ "$rc" != 0 ]; then
+  cat "$O/cargo.log" | tail -n 30
+fi
 grep -E "^error|warning: unused" "$O/cargo.log" | head -10
 [ "$rc" = 0 ] || { echo "STOP: cargo build failed (rc $rc) — $O/cargo.log"; exit 4; }
 cp "$TARGET_DYLIB" "$O/"; D="$O/libnvmtl_translate.dylib"; strip -S "$D"   # debug-map stabs name every .o by absolute path

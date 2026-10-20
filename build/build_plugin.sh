@@ -1,6 +1,6 @@
 #!/bin/bash
 set -u
-export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+export PATH="/opt/homebrew/bin:$PATH"
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 N=${N:-$HOME/nvmtl-build}
 VULKAN_HEADERS="${VULKAN_HEADERS:-$HOME/Vulkan-Headers}"
