@@ -22,7 +22,8 @@ permissions:
 
 jobs:
   build:
-    name: Build Driver & Kexts (macOS 15)
+    name: Build Driver & Kexts (macOS 15 Sequoia & macOS 26 Tahoe)
+    # Uses GitHub's macos-15 (Sequoia) runner with Xcode 16 to build for both macOS 15 and macOS 26 (Tahoe)
     runs-on: macos-15
 
     steps:
@@ -104,3 +105,4 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
+
